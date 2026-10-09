@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RAG + Agentic Workflow | .NET Demo</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, Segoe UI, sans-serif; background: #0b1220; color: #e8eef8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 20% 0%, #1b3655, transparent 38%), #0b1220; }
+    main { max-width: 1120px; margin: auto; padding: 56px 24px; }
+    .eyebrow { color: #7dd3fc; font-size: 13px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { max-width: 760px; font-size: clamp(36px, 6vw, 64px); line-height: 1.05; margin: 14px 0; }
+    .lead { max-width: 740px; color: #b8c7da; font-size: 18px; line-height: 1.6; }
+    .grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 20px; margin-top: 34px; }
+    .card { background: #101d30ee; border: 1px solid #29415d; border-radius: 18px; padding: 24px; box-shadow: 0 20px 55px #0004; }
+    h2 { margin: 0 0 18px; font-size: 20px; }
+    label { display: block; margin: 18px 0 8px; color: #c7d7e8; font-size: 14px; }
+    input, textarea { width: 100%; border: 1px solid #3b5875; border-radius: 10px; padding: 13px 14px; background: #091626; color: #fff; font: inherit; }
+    textarea { min-height: 104px; resize: vertical; }
+    button { cursor: pointer; border: 0; border-radius: 10px; padding: 12px 18px; color: #06111d; background: #7dd3fc; font-weight: 700; }
+    button:hover { background: #b0e5ff; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+    .chips button { background: #263e59; color: #e8eef8; font-weight: 500; }
+    .muted { color: #9fb2c8; }
+    .answer { font-size: 18px; line-height: 1.55; }
+    li { margin: 9px 0; line-height: 1.5; }
+    .source { border-top: 1px solid #29415d; padding: 12px 0; }
+    .source strong { color: #7dd3fc; }
+    .badge { display: inline-block; border-radius: 30px; padding: 5px 10px; background: #1e3b51; color: #9fe0ff; font-size: 12px; }
+    footer { margin-top: 36px; color: #9fb2c8; line-height: 1.6; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } main { padding-top: 36px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">ASP.NET Core · Educational Demo</div>
+    <h1>Bir destek sorusu nasıl güvenilir bir cevaba dönüşür?</h1>
+    <p class="lead">Bu küçük laboratuvar, belge arama, sipariş aracı ve karar akışını görünür kılar. Örnek siparişleri deneyip kaynakların ve adımların nasıl değiştiğini inceleyin.</p>
+    <div class="grid">
+      <section class="card">
+        <h2>1 · Soruyu gönder</h2>
+        <label for="message">Müşteri mesajı</label>
+        <textarea id="message">Siparişimi iade edebilir miyim?</textarea>
+        <label for="orderId">Sipariş numarası</label>
+        <input id="orderId" value="A100" autocomplete="off">
+        <div class="chips">
+          <button type="button" data-id="A100">A100 · 5 gün</button>
+          <button type="button" data-id="A200">A200 · 20 gün</button>
+          <button type="button" data-id="A300">A300 · kişiye özel</button>
+        </div>
+        <button type="button" id="send">Akışı çalıştır</button>
+      </section>
+      <section class="card" aria-live="polite">
+        <h2>2 · Sonucu incele</h2>
+        <div id="result"><p class="muted">Bir senaryo seçip akışı çalıştırın.</p></div>
+      </section>
+    </div>
+    <footer>Bu demo gerçek bir LLM veya embedding modeli kullanmaz. Arama, sözcük eşleşmesiyle; uygunluk kararı, uygulama kurallarıyla yapılır. Gerçek RAG mimarisine geçiş adımları README dosyasındadır.</footer>
+  </main>
+  <script>
+    const message = document.querySelector('#message');
+    const orderId = document.querySelector('#orderId');
+    const result = document.querySelector('#result');
+    document.querySelectorAll('[data-id]').forEach(button => button.addEventListener('click', () => { orderId.value = button.dataset.id; }));
+    document.querySelector('#send').addEventListener('click', async () => {
+      result.textContent = 'İşleniyor…';
+      try {
+        const response = await fetch('/support', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: message.value, orderId: orderId.value || null })
+        });
+        if (!response.ok) throw new Error('İstek işlenemedi.');
+        const data = await response.json();
+        result.replaceChildren();
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = data.needsHuman ? 'Temsilci gerekli' : 'Otomatik yanıt';
+        const answer = document.createElement('p');
+        answer.className = 'answer';
+        answer.textContent = data.answer;
+        const title = document.createElement('h3');
+        title.textContent = 'İşlem adımları';
+        const steps = document.createElement('ol');
+        data.steps.forEach(step => { const li = document.createElement('li'); li.textContent = step.replace(/^\d+\.\s*/, ''); steps.append(li); });
+        const sourcesTitle = document.createElement('h3');
+        sourcesTitle.textContent = 'Bulunan kaynaklar';
+        result.append(badge, answer, title, steps, sourcesTitle);
+        if (!data.sources.length) {
+          const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'İlgili kaynak bulunamadı.'; result.append(p);
+        }
+        data.sources.forEach(source => {
+          const div = document.createElement('div'); div.className = 'source';
+          const strong = document.createElement('strong'); strong.textContent = source.id + ' · ';
+          div.append(strong, document.createTextNode(source.text)); result.append(div);
+        });
+      } catch (error) { result.textContent = error.message; }
+    });
+  </script>
+</body>
+</html>
